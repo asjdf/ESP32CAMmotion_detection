@@ -235,7 +235,7 @@ int setupCamera(){
     // config.frame_size = FRAMESIZE_VGA;
     config.frame_size = FRAME_SIZE;
     config.jpeg_quality = 12;
-    config.fb_count = 2;
+    config.fb_count = 1;
 
     esp_err_t err = esp_camera_init(&config);
     if (err == ESP_OK) {
@@ -335,12 +335,16 @@ camera_config_t config;
 
 void RestartCamera(pixformat_t format) {
     bool ok;
+    Serial.println("a");
     esp_camera_deinit();
+    Serial.println("b");
       if (format == PIXFORMAT_JPEG) config.frame_size = FRAME_SIZE_PHOTO;
       else if (format == PIXFORMAT_GRAYSCALE) config.frame_size = FRAME_SIZE_MOTION;
       else Serial.println("ERROR: Invalid image format");
       config.pixel_format = format;
+      Serial.println("c");
     ok = esp_camera_init(&config);
+    Serial.println("d");
     if (ok == ESP_OK) {
       Serial.println("Camera mode switched ok");
     }
@@ -410,7 +414,9 @@ void loop() {
     Serial.println("=================");
     //侦测模式
     if (1){
+        Serial.println("a");
         RestartCamera(PIXFORMAT_GRAYSCALE);
+        Serial.println("b");
         fb = esp_camera_fb_get();
         delay(100);
         if (!fb) {
