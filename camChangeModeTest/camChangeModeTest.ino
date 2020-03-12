@@ -42,6 +42,10 @@ IPAddress DNS(192, 168, 0, 1);			//DNS
 #define PCLK_GPIO_NUM     22
 #endif
 
+int F_UXGA = 10;
+int F_QVGA = 4;
+int gray = 2;
+int rgb = 0;
 #define JST     3600*9
 #define PART_BOUNDARY "123456789000000000000987654321"
 static const char* _STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
@@ -268,67 +272,7 @@ int setupWifi(){
   return 1;
 }
 
-int setupLocalTime(){
-  time_t t;
-  struct tm *tm;
-  Serial.print("setupLocalTime: start config");
-  configTime(JST, 0, "ntp.nict.jp", "ntp.jst.mfeed.ad.jp");
-  do {
-    delay(500);
-    t = time(NULL);
-    tm = localtime(&t);
-    Serial.print(".");
-  } while(tm->tm_year + 1900 < 2000);
-  Serial.println("");
-  Serial.printf("setupLocalTime: %04d/%02d/%02d - %02d:%02d:%02d\n",
-    tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
-  return 1;
-}
 
-static esp_err_t handle_index(httpd_req_t *req){
-  static char resp_html[1024];
-  char * p = resp_html;
-  
-  p += sprintf(p, "<!doctype html>");
-  p += sprintf(p, "<html>");
-  p += sprintf(p, "<head>");
-  p += sprintf(p, "<meta name=\"viewport\" content=\"width=device-width\">");
-  p += sprintf(p, "<title>ESP32-CAM</title>");
-  p += sprintf(p, "</head>");
-  p += sprintf(p, "<body>");
-  p += sprintf(p, "<div align=center>");
-  p += sprintf(p, "<img id=stream src=\"\">");
-  p += sprintf(p, "</div>");  
-  p += sprintf(p, "<div align=center>");
-  p += sprintf(p, "<button id=savepic>Take Picture</button>");
-  p += sprintf(p, "</div>");  
-  p += sprintf(p, "<script>");
-  p += sprintf(p, "document.addEventListener('DOMContentLoaded', function (event) {\n");
-  p += sprintf(p, "  var baseHost = document.location.origin;\n");
-  p += sprintf(p, "  var streamUrl = baseHost + ':81';\n");
-  p += sprintf(p, "  const view = document.getElementById('stream');\n");
-  p += sprintf(p, "  document.getElementById('stream').src = `${streamUrl}/stream`;\n");
-  p += sprintf(p, "  document.getElementById('savepic').onclick = () => {\n");
-  p += sprintf(p, "    window.stop();\n");
-  p += sprintf(p, "    view.src = `${baseHost}/capture?_cb=${Date.now()}`;\n");
-  p += sprintf(p, "    console.log(view.src);\n");
-  p += sprintf(p, "    setTimeout(function(){\n");
-  p += sprintf(p, "      view.src = `${streamUrl}/stream`;\n");
-  p += sprintf(p, "      console.log(view.src);\n");
-  p += sprintf(p, "    }, 3000);\n");
-  p += sprintf(p, "  }\n");
-  p += sprintf(p, "})");
-  p += sprintf(p, "\n");
-  p += sprintf(p, "</script>");
-  p += sprintf(p, "</body>");
-  p += sprintf(p, "</html>");
-  *p++ = 0;
-
-  Serial.printf("handle_index: len: %d\n", strlen(resp_html));
-
-  httpd_resp_set_type(req, "text/html");
-  httpd_resp_send(req, resp_html, strlen(resp_html));
-}
 
 void savePic(camera_fb_t* fb){
     Serial.println("savePic: Start");
@@ -376,153 +320,66 @@ void savePic(camera_fb_t* fb){
     }
 }
 
-esp_err_t resp_jpg(httpd_req_t *req, bool isSave){
-    Serial.printf("resp_jpg: isSave: %d\n", isSave);
-    esp_err_t res = ESP_OK;
 
-    if(fb){
-        esp_camera_fb_return(fb);
-        fb = NULL;
+// ----------------------------------------------------------------
+//              -restart  the camera in different mode
+// ----------------------------------------------------------------
+//  pixformats = PIXFORMAT_ + YUV422,GRAYSCALE,RGB565,JPEG
+//  framesizes = FRAMESIZE_ + QVGA|CIF|VGA|SVGA|XGA|SXGA|UXGA
+// switches camera mode - format = PIXFORMAT_GRAYSCALE or PIXFORMAT_JPEG
+
+// camera configuration settings
+camera_config_t config;
+#define FRAME_SIZE_MOTION FRAMESIZE_QVGA     // FRAMESIZE_ + QVGA|CIF|VGA|SVGA|XGA|SXGA|UXGA - Do not use sizes above QVGA when not JPEG
+#define FRAME_SIZE_PHOTO FRAMESIZE_XGA       //   Image sizes: 160x120 (QQVGA), 128x160 (QQVGA2), 176x144 (QCIF), 240x176 (HQVGA), 320x240 (QVGA), 400x296 (CIF), 640x480 (VGA, default), 800x600 (SVGA), 1024x768 (XGA), 1280x1024 (SXGA), 1600x1200 (UXGA)
+
+void RestartCamera(pixformat_t format) {
+    bool ok;
+    esp_camera_deinit();
+      if (format == PIXFORMAT_JPEG) config.frame_size = FRAME_SIZE_PHOTO;
+      else if (format == PIXFORMAT_GRAYSCALE) config.frame_size = FRAME_SIZE_MOTION;
+      else Serial.println("ERROR: Invalid image format");
+      config.pixel_format = format;
+    ok = esp_camera_init(&config);
+    if (ok == ESP_OK) {
+      Serial.println("Camera mode switched ok");
     }
-    fb = esp_camera_fb_get();
-    if (!fb) {
-        Serial.println("resp_jpg: Camera capture failed");
-        httpd_resp_send_500(req);
-        return ESP_FAIL;
-    }
-
-    if(isSave){
-        // save image to SD card
-        savePic(fb);
-    }
-
-    httpd_resp_set_type(req, "image/jpeg");
-    httpd_resp_set_hdr(req, "Content-Disposition", "inline; filename=capture.jpg");
-    res = httpd_resp_send(req, (const char *)fb->buf, fb->len);
-    Serial.printf("resp_jpg: JPG: %uB\n", (uint32_t)(fb->len));
-    esp_camera_fb_return(fb);
-    fb = NULL;
-    Serial.println("resp_jpg: end");
-    return res;  
-}
-
-static esp_err_t handle_jpg(httpd_req_t *req){
-    while(semaphore){
-        delay(100);
-    }
-    semaphore = true;
-    Serial.println("handle_jpg: Start");
-    esp_err_t ret = resp_jpg(req, false);
-    semaphore = false;
-    return ret;
-}
-
-static esp_err_t handle_capture(httpd_req_t *req){
-    while(semaphore){
-        delay(100);
-    }
-    semaphore = true;
-    Serial.println("handle_capture: Start");
-    esp_err_t ret = resp_jpg(req, true);
-    semaphore = false;
-    return ret;
-}
-
-static esp_err_t handle_stream(httpd_req_t *req){
-    while(semaphore){
-    delay(100);
-    }
-    semaphore = true;
-
-    //camera_fb_t * fb = NULL;
-    esp_err_t res = ESP_OK;
-    char * part_buf[64];
-
-    Serial.println("handle_stream: Start");
-    res = httpd_resp_set_type(req, _STREAM_CONTENT_TYPE);
-    if(res != ESP_OK){
-    Serial.println("handle_stream: err: httpd_resp_set_type");
-    semaphore = false;
-    return res;
-  }
-
-  while(true){
-    fb = esp_camera_fb_get();
-    if (!fb) {
-      Serial.println("handle_stream: Camera capture failed");
-      res = ESP_FAIL;
-    } else {
-      Serial.printf("handle_stream: buffer: %dB\n", fb->len);
-    }
-    if(res == ESP_OK){
-      size_t hlen = snprintf((char *)part_buf, 64, _STREAM_PART, fb->len);
-      res = httpd_resp_send_chunk(req, (const char *)part_buf, hlen);
-    }
-    if(res == ESP_OK){
-      res = httpd_resp_send_chunk(req, (const char *)fb->buf, fb->len);
-    }
-    if(res == ESP_OK){
-      res = httpd_resp_send_chunk(req, _STREAM_BOUNDARY, strlen(_STREAM_BOUNDARY));
-    }
-    if(fb){
-      esp_camera_fb_return(fb);
-      fb = NULL;
-    }
-    if(res != ESP_OK){
-      break;
-    }
-  }
-
-  Serial.println("handle_stream: exit");
-  semaphore = false;
-  return res;
-}
-
-int setupWebServer(){
-    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-    
-    httpd_uri_t uri_index = {
-        .uri       = "/",
-        .method    = HTTP_GET,
-        .handler   = handle_index,
-        .user_ctx  = NULL
-    };
-
-    httpd_uri_t uri_jpg = {
-        .uri       = "/jpg",
-        .method    = HTTP_GET,
-        .handler   = handle_jpg,
-        .user_ctx  = NULL
-    };
-
-    httpd_uri_t uri_capture = {
-        .uri       = "/capture",
-        .method    = HTTP_GET,
-        .handler   = handle_capture,
-        .user_ctx  = NULL
-    };
-
-    httpd_uri_t uri_stream = {
-        .uri       = "/stream",
-        .method    = HTTP_GET,
-        .handler   = handle_stream,
-        .user_ctx  = NULL
-    };
-
-    Serial.printf("setupWebServer: web port: '%d'\n", config.server_port);
-    if (httpd_start(&httpd_camera, &config) == ESP_OK) {
-        httpd_register_uri_handler(httpd_camera, &uri_index);
-        httpd_register_uri_handler(httpd_camera, &uri_jpg);
-        httpd_register_uri_handler(httpd_camera, &uri_capture);
-    }  
-
-    config.server_port += 1;
-    config.ctrl_port += 1;
-    Serial.printf("setupWebServer: stream port: '%d'\n", config.server_port);
-    if (httpd_start(&httpd_stream, &config) == ESP_OK) {
-        httpd_register_uri_handler(httpd_stream, &uri_stream);
+    else {
+      // failed so try again
+        delay(50);
+        ok = esp_camera_init(&config);
+        if (ok == ESP_OK) Serial.println("Camera mode switched ok - 2nd attempt");
+        else {
+          Serial.println("Camera failed to restart so rebooting camera");
+          RebootCamera(format);
+        }
     }
 }
+
+
+// reboot camera (used if camera is failing to respond)
+//      restart camera in motion mode, capture a test frame to check it is now responding ok
+//      format = PIXFORMAT_GRAYSCALE or PIXFORMAT_JPEG
+
+void RebootCamera(pixformat_t format) {  
+    Serial.println("ERROR: Problem with camera detected so rebooting it"); 
+    // turn camera off then back on      
+        digitalWrite(PWDN_GPIO_NUM, HIGH);
+        delay(500);
+        digitalWrite(PWDN_GPIO_NUM, LOW); 
+        delay(500);
+    RestartCamera(PIXFORMAT_GRAYSCALE);    // restart camera in motion mode
+    delay(500);
+    // try capturing a frame, if still problem reboot esp32
+        if (!capture_still()) {
+            Serial.println("Camera failed to reboot so rebooting esp32");
+            delay(500);
+            ESP.restart();   
+            delay(5000);      // restart will fail without this delay
+         }
+    if (format == PIXFORMAT_JPEG) RestartCamera(PIXFORMAT_JPEG);                  // if jpg mode required restart camera again
+}
+
 
 void setup() {
 
@@ -543,44 +400,19 @@ void setup() {
         Serial.println("setupCamera failed.");
         return;
     }
-    if(!setupWifi()){
-        Serial.println("setupWifi failed.");
-        return;
-    }
-    
-    // if(!setupLocalTime()){
-    //   Serial.println("setupLocalTime failed.");
-    //   return;
-    // }
-
-    //setupWebServer();
-    
-    Serial.print("Camera Ready! Use 'http://");
-    Serial.print(localIp);
-    Serial.println("' to connect");
 }
 
 void loop() {
-    delay(1000);
-    if (!capture_still()) {
-        Serial.println("Failed capture");
-        delay(3000);
+    delay(5000);
+    
 
-        return;
-    }
-
-    if (motion_detect()) {
-        Serial.println("Motion detected");
-        if(fb){
-            esp_camera_fb_return(fb);
-            fb = NULL;
-        }
-        //拍摄模式
-        // sensor_t *sensor = esp_camera_sensor_get();  //FEB2
-        // sensor->set_pixformat(sensor, PIXFORMAT_JPEG);  //FEB2
-        // sensor->set_framesize(sensor, FRAMESIZE_UXGA);  //FEB2
-        // sensor->set_quality(sensor, 10);  //FEB2
+    // update_frame();
+    Serial.println("=================");
+    //侦测模式
+    if (1){
+        RestartCamera(PIXFORMAT_GRAYSCALE);
         fb = esp_camera_fb_get();
+        delay(100);
         if (!fb) {
             Serial.println("resp_jpg: Camera capture failed");
             return;
@@ -589,14 +421,71 @@ void loop() {
         savePic(fb);
         esp_camera_fb_return(fb);
         fb = NULL;
-
-        //侦测模式
-        // sensor->set_pixformat(sensor, PIXFORMAT_GRAYSCALE);  //FEB2
-        // sensor->set_framesize(sensor, FRAME_SIZE);  //FEB2
-        // sensor->set_quality(sensor, 12);  //FEB2
-        delay(1000);
     }
-
-    update_frame();
-    Serial.println("=================");
+    //拍摄模式
+    if(1){
+        RestartCamera(PIXFORMAT_JPEG);
+        delay(100);
+        fb = esp_camera_fb_get();
+        if (!fb) {
+            Serial.println("resp_jpg2: Camera capture failed");
+            return;
+        }
+        // save image to SD card
+        savePic(fb);
+        esp_camera_fb_return(fb);
+        fb = NULL;
+    } 
+    
 }
+
+
+// sensor_t * s = esp_camera_sensor_get();
+// if(!strcmp(variable, "framesize")) {
+//     if(s->pixformat == PIXFORMAT_JPEG) res = s->set_framesize(s, (framesize_t)val);
+// }
+// else if(!strcmp(variable, "quality")) res = s->set_quality(s, val);
+// else if(!strcmp(variable, "contrast")) res = s->set_contrast(s, val);
+// else if(!strcmp(variable, "brightness")) res = s->set_brightness(s, val);
+// else if(!strcmp(variable, "saturation")) res = s->set_saturation(s, val);
+// else if(!strcmp(variable, "gainceiling")) res = s->set_gainceiling(s, (gainceiling_t)val);
+// else if(!strcmp(variable, "colorbar")) res = s->set_colorbar(s, val);
+// else if(!strcmp(variable, "awb")) res = s->set_whitebal(s, val);
+// else if(!strcmp(variable, "agc")) res = s->set_gain_ctrl(s, val);
+// else if(!strcmp(variable, "aec")) res = s->set_exposure_ctrl(s, val);
+// else if(!strcmp(variable, "hmirror")) res = s->set_hmirror(s, val);
+// else if(!strcmp(variable, "vflip")) res = s->set_vflip(s, val);
+// else if(!strcmp(variable, "awb_gain")) res = s->set_awb_gain(s, val);
+// else if(!strcmp(variable, "agc_gain")) res = s->set_agc_gain(s, val);
+// else if(!strcmp(variable, "aec_value")) res = s->set_aec_value(s, val);
+// else if(!strcmp(variable, "aec2")) res = s->set_aec2(s, val);
+// else if(!strcmp(variable, "dcw")) res = s->set_dcw(s, val);
+// else if(!strcmp(variable, "bpc")) res = s->set_bpc(s, val);
+// else if(!strcmp(variable, "wpc")) res = s->set_wpc(s, val);
+// else if(!strcmp(variable, "raw_gma")) res = s->set_raw_gma(s, val);
+// else if(!strcmp(variable, "lenc")) res = s->set_lenc(s, val);
+// else if(!strcmp(variable, "special_effect")) res = s->set_special_effect(s, val);
+// else if(!strcmp(variable, "wb_mode")) res = s->set_wb_mode(s, val);
+// else if(!strcmp(variable, "ae_level")) res = s->set_ae_level(s, val);
+
+// <select id="framesize" class="default-action">
+//     <option value="10">UXGA(1600x1200)</option>
+//     <option value="9">SXGA(1280x1024)</option>
+//     <option value="8">XGA(1024x768)</option>
+//     <option value="7">SVGA(800x600)</option>
+//     <option value="6">VGA(640x480)</option>
+//     <option value="5" selected="selected">CIF(400x296)</option>
+//     <option value="4">QVGA(320x240)</option>
+//     <option value="3">HQVGA(240x176)</option>
+//     <option value="0">QQVGA(160x120)</option>
+// </select>
+
+// <select id="special_effect" class="default-action">
+//     <option value="0" selected="selected">No Effect</option>
+//     <option value="1">Negative</option>
+//     <option value="2">Grayscale</option>
+//     <option value="3">Red Tint</option>
+//     <option value="4">Green Tint</option>
+//     <option value="5">Blue Tint</option>
+//     <option value="6">Sepia</option>
+// </select>
