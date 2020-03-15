@@ -387,7 +387,7 @@ void RebootCamera(pixformat_t format) {
 
 void setup() {
 
-    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //禁用低电压自动关机
+    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 1); //禁用低电压自动关机
     // WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 1); //启用低电压自动关机
     setupSerial();
     if (!picCount.begin(picCount.length())) {
