@@ -9,4 +9,4 @@ https://eloquentarduino.github.io/2020/01/motion-detection-with-esp32-cam-only-a
 源码1
 https://github.com/alanesq/CameraWifiMotion
 
-2020.03.12 从CameraWifiMotion借了改摄像头模式的函数 未测试 已做小修改以匹配环境
+2020.03.12 从CameraWifiMotion借了改摄像头模式的函数 未测试 已做小修改以匹配自己的测试例程
