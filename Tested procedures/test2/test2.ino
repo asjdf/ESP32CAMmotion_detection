@@ -622,7 +622,7 @@ static esp_err_t init_sdcard()
 
 void make_avi( ) {
   //摄像头移动侦测
-  if (millis() - lastDetection > 100){
+  if (millis() - lastDetection > 200){
     xSemaphoreTake( baton, portMAX_DELAY );
     camera_fb_t* fb = esp_camera_fb_get();
     lastDetection = millis();
