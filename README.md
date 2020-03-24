@@ -17,12 +17,6 @@
 - 性能优化
 - 降低功耗
 
-从 https://github.com/jameszah/ESP32-CAM-Video-Recorder/ 改造而来
-
-结合了https://github.com/s60sc/ESP32-CAM_Motion
-
-补充了一个h文件 不然在编译的时候会有一点问题 处理得很粗糙,等待修改.
-
 #### 更新记录:
 - 2020.3.22 完成基本程序,或者说程序跑起来没问题.
 - 2020.03.12 从CameraWifiMotion借了改摄像头模式的函数 未测试 已做小修改以匹配自己的测试例程
