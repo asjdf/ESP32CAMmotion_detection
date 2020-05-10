@@ -30,7 +30,7 @@ static const char vernum[] = "v60";               // version 60 Feb 26, 2020 - a
 static const char devname[] = "desklens";         // name of your camera for mDNS, Router, and filenames
 
 
-#define TIMEZONE "CST-8"             // your timezone  -  this is GMT
+#define TIMEZONE "GMT0BST,M3.5.0/01,M10.5.0/02"             // your timezone  -  this is GMT
 
 
 // 1 for blink red led with every sd card write, at your frame rate
@@ -38,8 +38,8 @@ static const char devname[] = "desklens";         // name of your camera for mDN
 #define BlinkWithWrite 0
 
 // EDIT ssid and password
-const char ssid[] = "LinkTest";           // your wireless network name (SSID)
-const char password[] = "87654321";  // your Wi-Fi network password
+const char ssid[] = "Homeboy";           // your wireless network name (SSID)
+const char password[] = "kaoshishunli888";  // your Wi-Fi network password
 
 // startup defaults for first recording
 
@@ -58,7 +58,7 @@ int  repeat = 100;                 // 100 files
 int  xspeed = 1;                   // 1x playback speed (realtime is 1)
 int  gray = 0;                     // not gray
 int  quality = 10;                 // 10 on the 0..64 scale, or 10..50 subscale - 10 is good, 20 is grainy and smaller files
-int  capture_interval = 100;       // 100 ms or 10 frames per second
+int  capture_interval = 200;       // 200 ms or 5 frames per second
 int  total_frames = 18000;         // 18000 frames = 10 fps * 60 seconds * 30 minutes = half hour
 
 int PIRpin = 12;  
@@ -215,14 +215,14 @@ const int avi_header[AVIOFFSET] PROGMEM = {
 
 
 
-bool timeSet = 0;//未设置系统时间 暂停移动侦测
+
 // Motion detection test - looks for diffs between camera images.
 #include "motionDetect.h"
-bool debug = true;
+bool debug = false;
 uint8_t fsizePtr = FRAMESIZE_SVGA; // framesize selection
 uint8_t lightLevel; // Current ambient light level 
 uint8_t nightSwitch = 10; // white level % for night/day switching
-uint8_t motionVal = 7; // motion sensitivity difference setting
+uint8_t motionVal = 6; // motion sensitivity difference setting
 bool haveMotion = false;
 long lastDetection = 0;//上一次检测的时间 
 
@@ -389,7 +389,7 @@ WiFiEventId_t eventID;
 
 void setup() {
   //WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector  // creates other problems
-  delay(1000);//电容充电
+
   Serial.begin(115200);
 
   Serial.setDebugOutput(true);
@@ -403,11 +403,10 @@ void setup() {
 
   pinMode(33, OUTPUT);    // little red led on back of chip
   digitalWrite(33, LOW);           // turn on the red LED on the back of chip
-  
+
   if (init_wifi()) { // Connected to WiFi
     internet_connected = true;
   }
-  // init_time();//离线模式不需要设置时间
 
   if (!psramFound()) {
     Serial.println("paraFound wrong - major fail");
@@ -474,7 +473,7 @@ void setup() {
   ready = 1;
 
   Serial.print("Camera Ready! Use 'http://");
-  Serial.print(WiFi.softAPIP());
+  Serial.print(WiFi.localIP());
   Serial.println("' to connect");
 
 
@@ -513,9 +512,46 @@ void major_fail() {
 
 }
 
-void init_time(){
-  
-  // configTime(0, 0, "pool.ntp.org");
+
+bool init_wifi()
+{
+  int connAttempts = 0;
+
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_STA);
+
+  WiFi.setHostname(devname);
+  //WiFi.printDiag(Serial);
+  WiFi.begin(ssid, password);
+  delay(1000);
+  while (WiFi.status() != WL_CONNECTED ) {
+    delay(500);
+    Serial.print(".");
+    if (connAttempts == 10) {
+      Serial.println("Cannot connect - try again");
+      WiFi.begin(ssid, password);
+      WiFi.printDiag(Serial);
+    }
+    if (connAttempts == 20) {
+      Serial.println("Cannot connect - fail");
+
+      WiFi.printDiag(Serial);
+      return false;
+    }
+    connAttempts++;
+  }
+
+  Serial.println("Internet connected");
+
+  //WiFi.printDiag(Serial);
+
+  if (!MDNS.begin(devname)) {
+    Serial.println("Error setting up MDNS responder!");
+  } else {
+    Serial.printf("mDNS responder started '%s'\n", devname);
+  }
+
+  configTime(0, 0, "pool.ntp.org");
   setenv("TZ", TIMEZONE, 1);  // mountain time zone from #define at top
   tzset();
 
@@ -535,48 +571,7 @@ void init_time(){
   }
 
   Serial.println(ctime(&now));
-}
-bool init_wifi()
-{
-  int connAttempts = 0;
-
-  // WiFi.disconnect(true);
-  WiFi.mode(WIFI_AP);
-  // Set your Static IP address
-  IPAddress local_IP(10, 10, 1, 1);
-  // Set your Gateway IP address
-  IPAddress gateway(10, 10, 1, 1);
-  IPAddress subnet(255, 255, 255, 0);
-  WiFi.setHostname(devname);
-  //WiFi.printDiag(Serial);
-  WiFi.softAP(ssid, password);
-  delay(1000);
-  // while (WiFi.status() != WL_CONNECTED ) {
-  //   delay(500);
-  //   Serial.print(".");
-  //   if (connAttempts == 10) {
-  //     Serial.println("Cannot connect - try again");
-  //     WiFi.begin(ssid, password);
-  //     WiFi.printDiag(Serial);
-  //   }
-  //   if (connAttempts == 20) {
-  //     Serial.println("Cannot connect - fail");
-
-  //     WiFi.printDiag(Serial);
-  //     return false;
-  //   }
-  //   connAttempts++;
-  // }
-
-  Serial.println("AP start");
-  sprintf(localip, "%s", WiFi.softAPIP().toString().c_str());
-  //WiFi.printDiag(Serial);
-
-  if (!MDNS.begin(devname)) {
-    Serial.println("Error setting up MDNS responder!");
-  } else {
-    Serial.printf("mDNS responder started '%s'\n", devname);
-  }
+  sprintf(localip, "%s", WiFi.localIP().toString().c_str());
 
   return true;
 
@@ -627,44 +622,43 @@ static esp_err_t init_sdcard()
 
 void make_avi( ) {
   //摄像头移动侦测
-  if (timeSet == 1)//当时间设置完才开始移动侦测
-  {
-    if (millis() - lastDetection > 200){
-      xSemaphoreTake( baton, portMAX_DELAY );
-      camera_fb_t* fb = esp_camera_fb_get();
-      lastDetection = millis();
-      if (fb) {
-        haveMotion = motionDetection(fb, haveMotion);
-        Serial.println(haveMotion);
-        esp_camera_fb_return(fb); 
-      } else Serial.println("detection:Failed to get frame");
-      xSemaphoreGive( baton );
-      if(millis() - lastDetection > 4000){
-        haveMotion = false;
-      }
+  if (millis() - lastDetection > 200){
+    xSemaphoreTake( baton, portMAX_DELAY );
+    camera_fb_t* fb = esp_camera_fb_get();
+    lastDetection = millis();
+    if (fb) {
+      haveMotion = motionDetection(fb, haveMotion);
+      Serial.println(haveMotion);
+      esp_camera_fb_return(fb); 
+      haveMotion = false;
+      Serial.println(millis());
+    } else Serial.println("detection:Failed to get frame");
+    xSemaphoreGive( baton );
+    if(millis() - lastDetection > 4000){
+      haveMotion = false;
     }
-    if (haveMotion == 1) {
+  }
+  if (haveMotion == 1) {
 
-      if (PIRrecording == 1) {
-        // keep recording for 15 more seconds
-        if ( (millis() - startms) > (total_frames * capture_interval - 5000)  ) {
+    if (PIRrecording == 1) {
+      // keep recording for 15 more seconds
+      if ( (millis() - startms) > (total_frames * capture_interval - 5000)  ) {
 
-          total_frames = total_frames + 10000 / capture_interval ;
-          Serial.println("Add another 10 seconds");
-        }
+        total_frames = total_frames + 10000 / capture_interval ;
+        Serial.println("Add another 10 seconds");
+      }
 
-      } else {
+    } else {
 
-        if ( recording == 0 && newfile == 0) {
+      if ( recording == 0 && newfile == 0) {
 
-          //start a pir recording with current parameters, except no repeat and 15 seconds
-          Serial.println("Start a PIR(by cam)");
-          PIRrecording = 1;
-          repeat = 0;
-          total_frames = 15000 / capture_interval;
-          xlength = total_frames * capture_interval / 1000;
-          recording = 1;
-        }
+        //start a pir recording with current parameters, except no repeat and 15 seconds
+        Serial.println("Start a PIR(by cam)");
+        PIRrecording = 1;
+        repeat = 0;
+        total_frames = 15000 / capture_interval;
+        xlength = total_frames * capture_interval / 1000;
+        recording = 1;
       }
     }
   }
@@ -1188,7 +1182,23 @@ static esp_err_t do_fb() {
   xSemaphoreGive( baton );
 }
 
+void do_time() {
 
+  if (WiFi.status() != WL_CONNECTED) {
+
+    Serial.println("***** WiFi reconnect *****");
+    WiFi.reconnect();
+    delay(5000);
+
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("***** WiFi rerestart *****");
+      init_wifi();
+    }
+
+    sprintf(localip, "%s", WiFi.localIP().toString().c_str());
+  }
+
+}
 
 ////////////////////////////////////////////////////////////////////////////////////
 //
@@ -1206,7 +1216,7 @@ void loop()
   if (wakeup - last_wakeup > (14 * 60 * 1000) ) {       // 14 minutes
     last_wakeup = millis();
 
-    // do_time();
+    do_time();
   }
 
   ftpSrv.handleFTP();
@@ -1250,236 +1260,6 @@ static esp_err_t capture_handler(httpd_req_t *req) {
   //xSemaphoreGive( baton );
   return res;
 }
-
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-//
-//
-static esp_err_t stop_handler(httpd_req_t *req) {
-
-  esp_err_t res = ESP_OK;
-
-  recording = 0;
-  Serial.println("stopping recording");
-
-  do_stop("Stopping previous recording");
-
-  httpd_resp_send(req, the_page, strlen(the_page));
-  return ESP_OK;
-
-}
-
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-//
-//
-static esp_err_t start_handler(httpd_req_t *req) {
-
-  esp_err_t res = ESP_OK;
-
-  char  buf[80];
-  size_t buf_len;
-  char  new_res[20];
-
-  if (recording == 1) {
-    const char* resp = "You must Stop recording, before starting a new one.  Start over ...";
-    httpd_resp_send(req, resp, strlen(resp));
-
-    return ESP_OK;
-    return res;
-
-  } else {
-    //recording = 1;
-    Serial.println("starting recording");
-
-    sensor_t * s = esp_camera_sensor_get();
-
-    int new_interval = capture_interval;
-    int new_length = capture_interval * total_frames;
-
-    int new_framesize = s->status.framesize;
-    int new_quality = s->status.quality;
-    int new_repeat = 0;
-    int new_xspeed = 1;
-    int new_xlength = 3;
-    int new_gray = 0;
-
-    /*
-        Serial.println("");
-        Serial.println("Current Parameters :");
-        Serial.print("  Capture Interval = "); Serial.print(capture_interval);  Serial.println(" ms");
-        Serial.print("  Length = "); Serial.print(capture_interval * total_frames / 1000); Serial.println(" s");
-        Serial.print("  Quality = "); Serial.println(new_quality);
-        Serial.print("  Framesize = "); Serial.println(new_framesize);
-        Serial.print("  Repeat = "); Serial.println(repeat);
-        Serial.print("  Speed = "); Serial.println(xspeed);
-    */
-
-    buf_len = httpd_req_get_url_query_len(req) + 1;
-    if (buf_len > 1) {
-      if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
-        ESP_LOGI(TAG, "Found URL query => %s", buf);
-        char param[32];
-        /* Get value of expected key from query string */
-        //Serial.println(" ... parameters");
-        if (httpd_query_key_value(buf, "length", param, sizeof(param)) == ESP_OK) {
-
-          int x = atoi(param);
-          if (x >= 5 && x <= 3600 * 24 ) {   // 5 sec to 24 hours
-            new_length = x;
-          }
-
-          ESP_LOGI(TAG, "Found URL query parameter => length=%s", param);
-
-        }
-        if (httpd_query_key_value(buf, "repeat", param, sizeof(param)) == ESP_OK) {
-          int x = atoi(param);
-          if (x >= 0  ) {
-            new_repeat = x;
-          }
-
-          ESP_LOGI(TAG, "Found URL query parameter => repeat=%s", param);
-        }
-        if (httpd_query_key_value(buf, "framesize", new_res, sizeof(new_res)) == ESP_OK) {
-          if (strcmp(new_res, "UXGA") == 0) {
-            new_framesize = 10;
-          } else if (strcmp(new_res, "SVGA") == 0) {
-            new_framesize = 7;
-          } else if (strcmp(new_res, "VGA") == 0) {
-            new_framesize = 6;
-          } else if (strcmp(new_res, "CIF") == 0) {
-            new_framesize = 5;
-          } else {
-            Serial.println("Only UXGA, SVGA, VGA, and CIF are valid!");
-
-          }
-          ESP_LOGI(TAG, "Found URL query parameter => framesize=%s", new_res);
-        }
-        if (httpd_query_key_value(buf, "quality", param, sizeof(param)) == ESP_OK) {
-
-          int x = atoi(param);
-          if (x >= 10 && x <= 50) {                 // MINIMUM QUALITY 10 to save memory
-            new_quality = x;
-          }
-
-          ESP_LOGI(TAG, "Found URL query parameter => quality=%s", param);
-        }
-
-        if (httpd_query_key_value(buf, "speed", param, sizeof(param)) == ESP_OK) {
-
-          int x = atoi(param);
-          if (x >= 1 && x <= 100) {
-            new_xspeed = x;
-          }
-
-          ESP_LOGI(TAG, "Found URL query parameter => speed=%s", param);
-        }
-
-        if (httpd_query_key_value(buf, "gray", param, sizeof(param)) == ESP_OK) {
-
-          int x = atoi(param);
-          if (x == 1 ) {
-            new_gray = x;
-          }
-
-          ESP_LOGI(TAG, "Found URL query parameter => gray=%s", param);
-        }
-
-        if (httpd_query_key_value(buf, "interval", param, sizeof(param)) == ESP_OK) {
-
-          int x = atoi(param);
-          if (x >= 1 && x <= 180000) {  //  180,000 ms = 3 min
-            new_interval = x;
-          }
-          ESP_LOGI(TAG, "Found URL query parameter => interval=%s", param);
-        }
-      }
-    }
-
-    framesize = new_framesize;
-    capture_interval = new_interval;
-    xlength = new_length;
-    total_frames = new_length * 1000 / capture_interval;
-    repeat = new_repeat;
-    quality = new_quality;
-    xspeed = new_xspeed;
-    gray = new_gray;
-
-    do_start("Starting a new AVI");
-    httpd_resp_send(req, the_page, strlen(the_page));
-
-    recording = 1;
-    return ESP_OK;
-  }
-}
-
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-//
-//
-void do_start(char *the_message) {
-
-  Serial.print("do_start "); Serial.println(the_message);
-
-  const char msg[] PROGMEM = R"rawliteral(<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>%s ESP32-CAM Video Recorder</title>
-</head>
-<body>
-<h1>%s<br>ESP32-CAM Video Recorder %s </h1><br>
- <h3>Message is <font color="red">%s</font></h3><br>
- Recording = %d (1 is active)<br>
- Capture Interval = %d ms<br>
- Length = %d seconds<br>
- Quality = %d (10 best to 50 worst)<br>
- Framesize = %d (10 UXGA, 7 SVGA, 6 VGA, 5 CIF)<br>
- Repeat = %d<br>
- Speed = %d<br>
- Gray = %d<br><br>
-
-<br>
-<br><div id="image-container"></div>
-
-</body>
-</html>)rawliteral";
-
-
-  sprintf(the_page, msg, devname, devname, vernum, the_message, recording, capture_interval, capture_interval * total_frames / 1000, quality, framesize, repeat, xspeed, gray);
-  //Serial.println(strlen(msg));
-
-}
-
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-//
-//
-void do_stop(char *the_message) {
-
-  Serial.print("do_stop "); Serial.println(the_message);
-
-  const char msg[] PROGMEM = R"rawliteral(<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>%s ESP32-CAM Video Recorder</title>
-</head>
-<body>
-<h1>%s<br>ESP32-CAM Video Recorder %s </h1><br>
- <h3>Message is <font color="red">%s</font></h3><br>
- <h3><a href="http://%s/">http://%s/</a></h3>
- <h3><a href="http://%s/start?framesize=VGA&length=1800&interval=100&quality=10&repeat=100&speed=1&gray=0">http://%s/start?framesize=VGA&length=1800&interval=100&quality=10&repeat=100&speed=1&gray=0</a></h3> 
-<h3><a href="http://%s/start?framesize=VGA&length=1800&interval=500&quality=10&repeat=300&speed=30&gray=0">VGA 2 fps, for 30 minutes repeat, 30x playback</a></h3>
-<h3><a href="http://%s/start?framesize=UXGA&length=1800&interval=1000&quality=10&repeat=100&speed=30&gray=0">UXGA 1 sec per frame, for 30 minutes repeat, 30x playback</a></h3>
-<h3><a href="http://%s/start?framesize=UXGA&length=1800&interval=500&quality=10&repeat=100&speed=30&gray=0">UXGA 2 fps for 30 minutes repeat, 15x playback</a></h3>
-<h3><a href="http://%s/start?framesize=CIF&length=1800&interval=50&quality=10&repeat=100&speed=1&gray=0">CIF 20 fps second for 30 minutes repeat</a></h3>
-<br>
-</body>
-</html>)rawliteral";
-
-  sprintf(the_page, msg, devname, devname, vernum, the_message, localip, localip, localip, localip, localip, localip, localip, localip);
-
-}
-
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 //
@@ -1561,127 +1341,7 @@ document.addEventListener('DOMContentLoaded', function() {
   //Serial.println(strlen(the_page));
 }
 
-static esp_err_t time_handler(httpd_req_t *req) {
-  char  buf[80];
-  size_t buf_len = httpd_req_get_url_query_len(req) + 1;
 
-  if (buf_len > 1) {
-    if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
-      ESP_LOGI(TAG, "Found URL query => %s", buf);
-      char param[32];
-      /* Get value of expected key from query string */
-      //Serial.println(" ... parameters");
-
-      int year = 0;
-      int mon = 0;
-      int day = 0;
-      int hour = 0;
-      int min = 0;
-      int sec = 0;
-      bool err = 0;
-      
-      if (httpd_query_key_value(buf, "year", param, sizeof(param)) == ESP_OK) {
-        int x = atoi(param);
-        Serial.println(x);
-        if (x >= 1900 && x <= 2100 ) { 
-          year = x;
-          err = 0;
-          Serial.println(year);
-        }else{
-          err = 1;
-        }
-      }
-      if (httpd_query_key_value(buf, "mon", param, sizeof(param)) == ESP_OK) {
-        int x = atoi(param);
-        Serial.println(x);
-        if (x >= 1 && x <= 12 ) { 
-          mon = x;
-          err = 0;
-          Serial.println(mon);
-        }else{
-          err = 1;
-        }
-      }
-      if (httpd_query_key_value(buf, "day", param, sizeof(param)) == ESP_OK) {
-        int x = atoi(param);
-        Serial.println(x);
-        if (x >= 1 && x <= 31 ) { 
-          day = x;
-          err = 0;
-          Serial.println(day);
-        }else{
-          err = 1;
-        }
-      }
-      if (httpd_query_key_value(buf, "hour", param, sizeof(param)) == ESP_OK) {
-        int x = atoi(param);
-        Serial.println(x);
-        if (x >= 0 && x <= 24 ) { 
-          hour = x;
-          err = 0;
-          Serial.println(hour);
-        }else{
-          err = 1;
-        }
-      }
-      if (httpd_query_key_value(buf, "min", param, sizeof(param)) == ESP_OK) {
-        int x = atoi(param);
-        Serial.println(x);
-        if (x >= 0 && x <= 60 ) { 
-          min = x;
-          err = 0;
-          Serial.println(min);
-        }else{
-          err = 1;
-        }
-      }
-      if (httpd_query_key_value(buf, "sec", param, sizeof(param)) == ESP_OK) {
-        int x = atoi(param);
-        Serial.println(x);
-        if (x >= 0 && x <= 60 ) { 
-          sec = x;
-          err = 0;
-          Serial.println(sec);
-        }else{
-          err = 1;
-        }
-      }
-      if (err != 1)
-      {
-        struct tm tmGet;
-        tmGet.tm_year = year - 1900;
-        tmGet.tm_mon = mon;
-        tmGet.tm_mday = day;
-        tmGet.tm_hour = hour;
-        tmGet.tm_min = min;
-        tmGet.tm_sec = sec;
-        time_t t = mktime(&tmGet);
-        printf("Setting time: %s", asctime(&tmGet));
-        timeval tmSet = { .tv_sec = t };
-        settimeofday(&tmSet, NULL);
-        timeSet = 1;//时间设置完了
-      }
-      
-    }
-  }
-  const char msg[] PROGMEM = R"rawliteral(Time:%s
-<script>
-  var myDate = new Date();
-  var xhttp = new XMLHttpRequest();
-  xhttp.onreadystatechange = function() {
-    if (this.readyState == 4 && this.status == 200) {
-      document.getElementById("demo").innerHTML = this.responseText;
-    }
-  };
-  xhttp.open("GET", "/time?year=" + myDate.getFullYear() + "&mon=" + (myDate.getMonth()+1) + "&day=" + myDate.getDate() + "&hour=" + myDate.getHours() + "&min=" + myDate.getMinutes() + "&sec=" + myDate.getSeconds(), true);
-  xhttp.send();
-</script>)rawliteral";
-  struct tm timeinfo;
-  getLocalTime(&timeinfo);
-  sprintf(the_page, msg, asctime(&timeinfo) );
-  httpd_resp_send(req, the_page, strlen(the_page));
-  return ESP_OK; 
-}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 //
 //
@@ -1708,32 +1368,9 @@ void startCameraServer() {
     .user_ctx  = NULL
   };
 
-  httpd_uri_t file_stop = {
-    .uri       = "/stop",
-    .method    = HTTP_GET,
-    .handler   = stop_handler,
-    .user_ctx  = NULL
-  };
-
-  httpd_uri_t file_start = {
-    .uri       = "/start",
-    .method    = HTTP_GET,
-    .handler   = start_handler,
-    .user_ctx  = NULL
-  };
-  httpd_uri_t time_set = {
-    .uri       = "/time",
-    .method    = HTTP_GET,
-    .handler   = time_handler,
-    .user_ctx  = NULL
-  };
-
   if (httpd_start(&camera_httpd, &config) == ESP_OK) {
     httpd_register_uri_handler(camera_httpd, &index_uri);
     httpd_register_uri_handler(camera_httpd, &capture_uri);
-    httpd_register_uri_handler(camera_httpd, &file_start);
-    httpd_register_uri_handler(camera_httpd, &file_stop);
-    httpd_register_uri_handler(camera_httpd, &time_set);
   }
 
   Serial.println("Camera http started");

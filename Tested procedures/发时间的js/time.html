@@ -1,0 +1,32 @@
+<script>
+  var myDate = new Date();
+  var xhttp = new XMLHttpRequest();
+  xhttp.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      document.getElementById("demo").innerHTML = this.responseText;
+    }
+  };
+  xhttp.open("GET", "/time?year=" + myDate.getFullYear() + "&mon=" + (myDate.getMonth()+1) + "&day=" + myDate.getDate() + "&hour=" + myDate.getHours() + "&min=" + myDate.getMinutes() + "&sec=" + myDate.getSeconds(), true);
+  xhttp.send();
+</script>
+  <!-- <script>
+  function upTime() {
+    var myDate = new Date();
+    console.log(myDate.getFullYear());
+    console.log(myDate.getMonth());
+    console.log(myDate.getDate());
+    console.log(myDate.getHours());
+    console.log(myDate.getMinutes());
+    console.log(myDate.getSeconds());
+
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+      if (this.readyState == 4 && this.status == 200) {
+        document.getElementById("demo").innerHTML = this.responseText;
+      }
+    };
+    xhttp.open("GET", "/time?year=" + myDate.getFullYear() + "&mon=" + (myDate.getMonth()+1) + "&day=" + myDate.getDate() + "&hour=" + myDate.getHours() + "&min=" + myDate.getMinutes() + "&sec=" + myDate.getSeconds(), true);
+    xhttp.send();
+  }
+  upTime();
+  </script> -->
