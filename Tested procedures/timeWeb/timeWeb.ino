@@ -361,7 +361,7 @@ void do_start(char *the_message) {
 //
 static esp_err_t index_handler(httpd_req_t *req) {
 
-  do_status("Refresh Status");
+  // do_status("Refresh Status");
   httpd_resp_send(req, the_page, strlen(the_page));
   return ESP_OK;
 }
