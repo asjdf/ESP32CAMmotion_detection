@@ -1,4 +1,6 @@
 # ESP32MotionDetectionWithVideoRecorder
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fasjdf%2FESP32CAMmotion_detection.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fasjdf%2FESP32CAMmotion_detection?ref=badge_shield)
+
 ## ESP32移动侦测摄像机
 
 ### 目录结构:
@@ -32,3 +34,6 @@
 - https://github.com/raphaelbs/esp32-cam-ai-thinker/blob/master/examples/change_detection/README.md
 
 再次感谢以上程序的作者
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fasjdf%2FESP32CAMmotion_detection.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fasjdf%2FESP32CAMmotion_detection?ref=badge_large)
